@@ -6,14 +6,18 @@ import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import android.widget.Button
+import android.widget.EditText
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 
 import com.commexpert.CommExpertMng
 import com.truefriend.corelib.commexpert.intrf.IExpertInitListener
+import com.truefriend.corelib.commexpert.intrf.IExpertLoginListener
 
-class MainActivity : AppCompatActivity(), IExpertInitListener {
+class MainActivity : AppCompatActivity(), IExpertInitListener, IExpertLoginListener {
     private val TAG : String = "HantooSample" // 로깅용 태그
+    private var isConnected : Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -21,6 +25,11 @@ class MainActivity : AppCompatActivity(), IExpertInitListener {
 
         if (!requestPermissions())
             startApp()
+
+        val button = findViewById<Button>(R.id.button)
+        button.setOnClickListener{
+            login()
+        }
     }
 
     private fun startApp() {
@@ -32,12 +41,24 @@ class MainActivity : AppCompatActivity(), IExpertInitListener {
 
         //Listener 셋팅
         CommExpertMng.getInstance().SetInitListener(this@MainActivity)
-//        CommExpertMng.getInstance().SetLoginListener(this@MainActivity)
+        CommExpertMng.getInstance().SetLoginListener(this@MainActivity)
 
         //"0"리얼 ,  "1" 모의투자
         CommExpertMng.getInstance().SetDevSetting("0")
     }
 
+    private fun login() {
+        if (!isConnected){
+            Toast.makeText(this, "서버가 연결되지 않았습니다.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val idStr = findViewById<EditText>(R.id.editId).text.toString()
+        val pwStr = findViewById<EditText>(R.id.editPw).text.toString()
+        val caPwStr = findViewById<EditText>(R.id.editCaPw).text.toString()
+
+        CommExpertMng.getInstance().StartLogin ( idStr, pwStr, caPwStr );
+    }
 
     /**
      * IExpertInitListener
@@ -48,7 +69,6 @@ class MainActivity : AppCompatActivity(), IExpertInitListener {
     }
 
     override fun onSessionConnected(isSuccess: Boolean, msg: String?) {
-        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
         if (msg != null) {
             Log.d(TAG, msg)
         }
@@ -73,7 +93,7 @@ class MainActivity : AppCompatActivity(), IExpertInitListener {
         Log.d(TAG, "초기화 작업 완료")
         Toast.makeText(this, "초기화 작업 완료", Toast.LENGTH_SHORT).show()
 
-        // TODO : Login
+        isConnected = true
     }
 
     override fun onRequiredRefresh() {
@@ -129,5 +149,26 @@ class MainActivity : AppCompatActivity(), IExpertInitListener {
         }
 
         finishAndRemoveTask()
+    }
+
+
+    /**
+     * IExpertLoginListener
+     */
+    override fun onLoginResult(isSuccess: Boolean, strErrorMsg: String?) {
+        Log.d(TAG, "Result : $isSuccess, Message : $strErrorMsg" )
+    }
+
+    override fun onAccListResult(isSuccess: Boolean, strErrorMsg: String?) {
+        Log.d(TAG, "Result : $isSuccess, Message : $strErrorMsg" )
+    }
+
+    override fun onPublicCertResult(isSuccess: Boolean) {
+        Log.d(TAG, "Result : $isSuccess" )
+    }
+
+    override fun onLoginFinished() {
+        Log.d(TAG,"onLoginFinished")
+        Log.d(TAG, CommExpertMng.getInstance().GetLoginUserID())
     }
 }
