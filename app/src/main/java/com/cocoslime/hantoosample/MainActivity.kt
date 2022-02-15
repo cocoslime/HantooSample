@@ -6,18 +6,28 @@ import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 
 import com.commexpert.CommExpertMng
+import com.commexpert.ExpertTranProc
 import com.truefriend.corelib.commexpert.intrf.IExpertInitListener
 import com.truefriend.corelib.commexpert.intrf.IExpertLoginListener
+import com.truefriend.corelib.commexpert.intrf.ITranDataListener
 
-class MainActivity : AppCompatActivity(), IExpertInitListener, IExpertLoginListener {
+class MainActivity : AppCompatActivity(), IExpertInitListener, IExpertLoginListener,
+    ITranDataListener {
     private val TAG : String = "HantooSample" // 로깅용 태그
     private var isConnected : Boolean = false
+    private var isLogin : Boolean = false
+
+    private var currentPriceRqId = 0
+    private lateinit var expertTranProc : ExpertTranProc
+    private lateinit var buttonSearch : Button
+    private lateinit var editCode : EditText
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,9 +36,20 @@ class MainActivity : AppCompatActivity(), IExpertInitListener, IExpertLoginListe
         if (!requestPermissions())
             startApp()
 
-        val button = findViewById<Button>(R.id.button)
+        val button = findViewById<Button>(R.id.buttonLogin)
         button.setOnClickListener{
             login()
+        }
+
+        // ExpertTranProc 초기화
+        expertTranProc = ExpertTranProc(this)
+        expertTranProc.InitInstance(this)
+        expertTranProc.SetShowTrLog(true)
+
+        buttonSearch = findViewById(R.id.buttonSearch)
+        editCode = findViewById(R.id.editCode)
+        buttonSearch.setOnClickListener {
+            requestCurrentPrice(editCode.text.toString())
         }
     }
 
@@ -170,5 +191,43 @@ class MainActivity : AppCompatActivity(), IExpertInitListener, IExpertLoginListe
     override fun onLoginFinished() {
         Log.d(TAG,"onLoginFinished")
         Log.d(TAG, CommExpertMng.getInstance().GetLoginUserID())
+
+
+        isLogin = true
+        buttonSearch.visibility = View.VISIBLE
+        editCode.visibility = View.VISIBLE
+    }
+
+
+    /**
+     * ITranDataListener
+     */
+
+    override fun onTranDataReceived(sTranID: String?, nRqId: Int) {
+        if (sTranID?.contains("scp") == true && currentPriceRqId == nRqId) {
+            val currentPrice = expertTranProc.GetSingleData(0, 11) // 11 : 주식 현재가
+            val dayChange = expertTranProc.GetSingleData(0, 12) // 12 : 전일 대비
+
+            Toast.makeText(this, "현재가 : $currentPrice, 전일 대비 : $dayChange", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onTranMessageReceived(nRqId: Int, strMsgCode: String?, strErrorType: String?,strMessage: String? ) {
+        val msg : String = "$nRqId, $strMsgCode, $strErrorType, $strMessage"
+        Log.d(TAG, msg)
+    }
+
+    override fun onTranTimeout(nRqId: Int) {
+        val msg : String = "$nRqId"
+        Log.d(TAG, msg)
+    }
+
+    private fun requestCurrentPrice(code: String){
+        if (code.isNotEmpty()) {
+            expertTranProc.ClearInblockData()
+            expertTranProc.SetSingleData(0,0, "J") // J 는 주식
+            expertTranProc.SetSingleData(0,1, code)
+            currentPriceRqId = expertTranProc.RequestData("scp")
+        }
     }
 }
